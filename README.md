@@ -1,7 +1,7 @@
 # 🤖 Chellot - AI Chatbot
 
 <div align="center">
-  <img src="icon.jpeg" alt="Chellot Logo" width="80" height="80" style="border-radius: 12px;">
+  <img src="icon.ico" alt="Chellot Logo" width="80" height="80" style="border-radius: 12px;">
   
   **A Modern, Multi-Model AI Chatbot with Image, Audio & Video Generation**
   
