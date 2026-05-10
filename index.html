@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chellot - AI Chatbot</title>
+    <link rel="icon" type="image/jpeg" href="icon.jpeg">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        glass: 'var(--glass-bg)',
+                        glassHover: 'var(--glass-hover)',
+                        glassBorder: 'var(--glass-border)',
+                        accent: 'var(--accent)',
+                        textMain: 'var(--text-main)',
+                        textMuted: 'var(--text-muted)'
+                    },
+                    boxShadow: {
+                        'glass': '0 8px 32px 0 rgba(0, 0, 0, 0.37)',
+                        'neon': '0 0 10px var(--accent), 0 0 20px var(--accent)'
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- External Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css" id="hljs-theme">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="h-screen flex overflow-hidden z-0">
+
+    <!-- Liquid Background Blobs -->
+    <div class="blob-cont">
+        <div class="blob blob1"></div>
+        <div class="blob blob2"></div>
+        <div class="blob blob3"></div>
+    </div>
+
+    <!-- Mobile Overlay -->
+    <div id="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+    <!-- Sidebar -->
+    <aside id="sidebar" class="w-72 glass-panel flex flex-col h-full border-r border-glassBorder shrink-0 transition-all duration-300">
+        <!-- Logo Area -->
+        <div class="p-5 border-b border-glassBorder flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-accent flex items-center justify-center shadow-neon text-white font-bold text-xl">
+                    C
+                </div>
+                <h1 class="text-2xl font-bold tracking-wider" style="color: var(--accent); text-shadow: 0 0 10px rgba(var(--accent), 0.5);">Chellot</h1>
+            </div>
+            <button class="md:hidden text-textMuted hover:text-accent transition" onclick="toggleSidebar()">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+        </div>
+
+        <!-- New Chat Button & Instructions -->
+        <div class="p-4 space-y-3">
+            <button onclick="loadChat('instructions_chat')" class="w-full glass-button py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 font-medium text-accent border border-accent/20 hover:shadow-neon hover:border-accent">
+                <i class="fas fa-book-open"></i> Read Instructions
+            </button>
+            <button onclick="startNewChat()" class="w-full glass-button py-3 px-4 rounded-xl flex items-center justify-center gap-2 font-medium text-textMain hover:shadow-neon">
+                <i class="fas fa-plus"></i> New Chat
+            </button>
+        </div>
+
+        <!-- History List -->
+        <div class="flex-1 overflow-y-auto p-4 space-y-6" id="history-container">
+            <!-- Grouped by Today / Yesterday / Older -->
+        </div>
+
+        <!-- Settings & User Area -->
+        <div class="p-4 border-t border-glassBorder">
+            <button onclick="openSettings()" class="w-full glass-button py-3 px-4 rounded-xl flex items-center gap-3 text-textMuted hover:text-textMain">
+                <i class="fas fa-cog"></i> Settings
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main Chat Area -->
+    <main class="flex-1 flex flex-col h-full relative">
+        
+        <!-- Top Bar -->
+        <header class="h-16 glass-panel border-b border-glassBorder flex items-center justify-between px-4 lg:px-8 z-10 shrink-0">
+            <div class="flex items-center gap-4">
+                <button class="text-textMuted hover:text-accent transition tooltip" title="Toggle Sidebar" onclick="toggleSidebar()">
+                    <i class="fas fa-bars text-xl"></i>
+                </button>
+                <div>
+                    <h2 id="current-chat-title" class="font-semibold text-lg truncate w-48 md:w-auto">New Conversation</h2>
+                    <div class="flex items-center gap-2 text-xs text-textMuted">
+                        <span class="w-2 h-2 rounded-full bg-accent animate-pulse"></span>
+                        <span id="active-model-badge">Text: nvidia/nemotron-3-super...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <button onclick="exportChat()" class="glass-button p-2 rounded-lg text-textMuted hover:text-textMain tooltip" title="Export Chat">
+                    <i class="fas fa-download"></i>
+                </button>
+                <button onclick="clearCurrentChat()" class="glass-button p-2 rounded-lg text-textMuted hover:text-red-400 tooltip" title="Clear Chat">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Messages Feed -->
+        <div id="chat-feed" class="flex-1 overflow-y-auto p-4 lg:p-8 space-y-6 relative">
+            <!-- Initial State / Empty -->
+            <div id="empty-state" class="h-full flex flex-col items-center justify-center text-center fade-in">
+                <div class="w-20 h-20 rounded-full bg-glass flex items-center justify-center mb-6 border border-glassBorder shadow-glass">
+                    <i class="fas fa-robot text-4xl text-accent"></i>
+                </div>
+                <h3 class="text-2xl font-bold mb-4">How can I help you today?</h3>
+                <p class="text-textMuted max-w-md mb-6">Ask me anything, generate images, or create audio and video prompts.</p>
+                
+                <!-- Instructions Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-5xl mt-6 animate-[slideUp_0.6s_ease-out]">
+                    <!-- Image Card -->
+                    <div class="glass-panel p-6 rounded-2xl border border-glassBorder shadow-glass hover:shadow-neon hover:border-accent transition-all group">
+                        <div class="w-12 h-12 rounded-xl bg-accent/20 flex items-center justify-center text-accent text-2xl mb-4 group-hover:scale-110 transition-transform shadow-inner">📸</div>
+                        <h4 class="text-lg font-bold mb-4 text-textMain">For Images</h4>
+                        <ul class="text-sm text-textMuted space-y-3 text-left font-medium">
+                            <li class="flex items-start gap-3"><i class="fas fa-magic text-accent mt-1 opacity-70"></i> <span>"Convert to an image"</span></li>
+                            <li class="flex items-start gap-3"><i class="fas fa-magic text-accent mt-1 opacity-70"></i> <span>"Edit this picture"</span></li>
+                            <li class="flex items-start gap-3"><i class="fas fa-magic text-accent mt-1 opacity-70"></i> <span>"Ask for an illustration"</span></li>
+                            <li class="flex items-start gap-3"><i class="fas fa-magic text-accent mt-1 opacity-70"></i> <span>"Paint me a..."</span></li>
+                            <li class="flex items-start gap-3"><i class="fas fa-magic text-accent mt-1 opacity-70"></i> <span>"Design a photo"</span></li>
+                        </ul>
+                    </div>
+                    
+                    <!-- Audio Card -->
+                    <div class="glass-panel p-6 rounded-2xl border border-glassBorder shadow-glass hover:shadow-neon hover:border-accent transition-all group">
+                        <div class="w-12 h-12 rounded-xl bg-accent/20 flex items-center justify-center text-accent text-2xl mb-4 group-hover:scale-110 transition-transform shadow-inner">🎵</div>
+                        <h4 class="text-lg font-bold mb-4 text-textMain">For Audio</h4>
+                        <ul class="text-sm text-textMuted space-y-3 text-left font-medium">
+                            <li class="flex items-start gap-3"><i class="fas fa-music text-accent mt-1 opacity-70"></i> <span>"Convert to mp3"</span></li>
+                            <li class="flex items-start gap-3"><i class="fas fa-music text-accent mt-1 opacity-70"></i> <span>"Generate a sound"</span></li>
+                            <li class="flex items-start gap-3"><i class="fas fa-music text-accent mt-1 opacity-70"></i> <span>"Make a voice for this text"</span></li>
+                            <li class="flex items-start gap-3"><i class="fas fa-music text-accent mt-1 opacity-70"></i> <span>"Compose a song"</span></li>
+                            <li class="flex items-start gap-3"><i class="fas fa-music text-accent mt-1 opacity-70"></i> <span>"Sing this track"</span></li>
+                        </ul>
+                    </div>
+
+                    <!-- Video Card -->
+                    <div class="glass-panel p-6 rounded-2xl border border-glassBorder shadow-glass hover:shadow-neon hover:border-accent transition-all group">
+                        <div class="w-12 h-12 rounded-xl bg-accent/20 flex items-center justify-center text-accent text-2xl mb-4 group-hover:scale-110 transition-transform shadow-inner">🎬</div>
+                        <h4 class="text-lg font-bold mb-4 text-textMain">For Video</h4>
+                        <ul class="text-sm text-textMuted space-y-3 text-left font-medium">
+                            <li class="flex items-start gap-3"><i class="fas fa-video text-accent mt-1 opacity-70"></i> <span>"Animate this clip"</span></li>
+                            <li class="flex items-start gap-3"><i class="fas fa-video text-accent mt-1 opacity-70"></i> <span>"Convert to mp4"</span></li>
+                            <li class="flex items-start gap-3"><i class="fas fa-video text-accent mt-1 opacity-70"></i> <span>"Edit a movie"</span></li>
+                            <li class="flex items-start gap-3"><i class="fas fa-video text-accent mt-1 opacity-70"></i> <span>"Ask for a video generation"</span></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <!-- Messages go here -->
+        </div>
+
+        <!-- Floating Scroll to Bottom Button -->
+        <button id="scroll-bottom-btn" onclick="scrollToBottom()" class="absolute bottom-32 right-8 w-10 h-10 rounded-full glass-panel text-textMain shadow-glass hidden hover:text-accent transition-colors items-center justify-center z-20 tooltip" title="New messages below">
+            <i class="fas fa-arrow-down"></i>
+        </button>
+
+        <!-- Input Area -->
+        <div class="p-4 lg:p-6 pb-6 lg:pb-8 shrink-0">
+            <div class="max-w-4xl mx-auto">
+                <div class="glass-panel rounded-2xl p-2 flex flex-col focus-within:border-accent focus-within:shadow-neon transition-all duration-300 relative">
+                    
+                    <div class="flex items-center justify-between px-2 pt-1 pb-2 border-b border-glassBorder/50 mb-2">
+                        <div class="flex items-center gap-2">
+                            <!-- Simple / Detailed Mode Toggle -->
+                            <span class="text-xs text-textMuted">Mode:</span>
+                            <div class="bg-black/20 rounded-full p-1 flex relative">
+                                <button id="mode-simple" onclick="setAnswerMode('simple')" class="text-xs px-3 py-1 rounded-full z-10 transition-colors bg-accent text-white">Simple</button>
+                                <button id="mode-detailed" onclick="setAnswerMode('detailed')" class="text-xs px-3 py-1 rounded-full z-10 transition-colors text-textMuted hover:text-textMain">Detailed</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Attachments preview -->
+                    <div id="attachment-preview" class="px-2 pb-2 flex gap-2 overflow-x-auto hidden border-b border-glassBorder/50 mb-2"></div>
+
+                    <div class="flex items-end gap-2 px-2 pb-1">
+                        <input type="file" id="file-upload" class="hidden" accept="image/*" onchange="handleFileUpload(event)">
+                        <button onclick="document.getElementById('file-upload').click()" class="text-textMuted hover:text-accent transition p-2 mb-1" title="Attach Media">
+                            <i class="fas fa-paperclip text-lg"></i>
+                        </button>
+                        
+                        <textarea id="message-input" rows="1" class="flex-1 bg-transparent text-textMain placeholder-textMuted resize-none outline-none py-2 max-h-32" placeholder="Message Chellot..."></textarea>
+                        
+                        <button id="send-button" onclick="sendMessage()" class="bg-accent text-white w-10 h-10 rounded-xl flex items-center justify-center hover:scale-105 transition-all shadow-lg shadow-accent/30 mb-1 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="text-center mt-2 text-xs text-textMuted">
+                    Chellot can make mistakes. Consider verifying important information.
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="fixed inset-0 z-50 hidden items-center justify-center fade-in">
+        <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="closeSettings()"></div>
+        <div class="glass-panel w-full max-w-2xl rounded-2xl p-6 lg:p-8 relative z-10 max-h-[90vh] overflow-y-auto">
+            <button onclick="closeSettings()" class="absolute top-4 right-4 text-textMuted hover:text-textMain">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+            <h2 class="text-2xl font-bold mb-6 border-b border-glassBorder pb-4">Settings</h2>
+
+            <div class="space-y-8">
+                <!-- Theme Selection -->
+                <section>
+                    <h3 class="text-lg font-semibold mb-3 flex items-center gap-2"><i class="fas fa-palette text-accent"></i> Appearance</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        <button onclick="setTheme('midnight_glass')" class="glass-button py-2 px-3 rounded-lg text-sm flex items-center justify-between" id="theme-btn-midnight_glass">Midnight <span>🔵</span></button>
+                        <button onclick="setTheme('aurora')" class="glass-button py-2 px-3 rounded-lg text-sm flex items-center justify-between" id="theme-btn-aurora">Aurora <span>🟢</span></button>
+                        <button onclick="setTheme('solar_flare')" class="glass-button py-2 px-3 rounded-lg text-sm flex items-center justify-between" id="theme-btn-solar_flare">Solar Flare <span>🟠</span></button>
+                        <button onclick="setTheme('arctic_light')" class="glass-button py-2 px-3 rounded-lg text-sm flex items-center justify-between" id="theme-btn-arctic_light">Arctic Light <span>⚪</span></button>
+                        <button onclick="setTheme('sakura')" class="glass-button py-2 px-3 rounded-lg text-sm flex items-center justify-between" id="theme-btn-sakura">Sakura <span>🌸</span></button>
+                    </div>
+                </section>
+
+                <!-- API Key -->
+                <section>
+                    <h3 class="text-lg font-semibold mb-3 flex items-center gap-2"><i class="fas fa-key text-accent"></i> OpenRouter API Key</h3>
+                    <input type="password" id="api-key-input" class="w-full glass-input p-3 rounded-xl mb-2" placeholder="sk-or-v1-...">
+                    <p class="text-xs text-textMuted">Saved locally in your browser.</p>
+                </section>
+
+                <!-- Model Selection -->
+                <section>
+                    <h3 class="text-lg font-semibold mb-3 flex items-center gap-2"><i class="fas fa-brain text-accent"></i> Models & Fallbacks</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm text-textMuted mb-1">Text Models (Default)</label>
+                            <select id="model-text" class="w-full glass-input p-3 rounded-xl appearance-none bg-glass cursor-pointer">
+                                <option value="nvidia/nemotron-3-super-120b-a12b:free">Nvidia Nemotron 3 120B (Free)</option>
+                                <option value="openrouter/owl-alpha">Owl Alpha</option>
+                                <option value="poolside/laguna-m.1:free">Poolside Laguna M.1 (Free)</option>
+                                <option value="openai/gpt-oss-120b:free">GPT-OSS 120B (Free)</option>
+                                <option value="inclusionai/ring-2.6-1t:free">Ring 2.6 1T (Free)</option>
+                                <option value="z-ai/glm-4.5-air:free">GLM 4.5 Air (Free)</option>
+                                <option value="minimax/minimax-m2.5:free">Minimax M2.5 (Free)</option>
+                                <option value="google/gemma-4-31b-it:free">Google Gemma 4 31B (Free)</option>
+                                <option value="baidu/cobuddy:free">Baidu Cobuddy (Free)</option>
+                                <option value="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free">Nemotron 3 Nano Omni (Free)</option>
+                                <option value="nvidia/nemotron-3-nano-30b-a3b:free">Nemotron 3 Nano (Free)</option>
+                                <option value="google/lyria-3-pro-preview">Lyria 3 Pro Preview</option>
+                                <option value="google/lyria-3-clip-preview">Lyria 3 Clip Preview</option>
+                                <option value="nousresearch/hermes-3-llama-3.1-405b:free">Hermes 3 Llama 3.1 405B (Free)</option>
+                                <option value="meta-llama/llama-3.2-3b-instruct:free">Llama 3.2 3B Instruct (Free)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm text-textMuted mb-1">Image Generation Models</label>
+                            <select id="model-image" class="w-full glass-input p-3 rounded-xl appearance-none bg-glass cursor-pointer">
+                                <option value="nvidia/llama-nemotron-embed-vl-1b-v2:free">Llama Nemotron Embed VL (Free)</option>
+                                <option value="bytedance-seed/seedream-4.5">Seedream 4.5</option>
+                                <option value="sourceful/riverflow-v2-fast">Riverflow V2 Fast</option>
+                                <option value="black-forest-labs/flux.2-pro">Flux.2 Pro</option>
+                                <option value="black-forest-labs/flux.2-klein-4b">Flux.2 Klein 4B</option>
+                                <option value="sourceful/riverflow-v2-pro">Riverflow V2 Pro</option>
+                                <option value="sourceful/riverflow-v2-standard-preview">Riverflow V2 Standard Preview</option>
+                                <option value="sourceful/riverflow-v2-fast-preview">Riverflow V2 Fast Preview</option>
+                                <option value="recraft/recraft-v4-pro">Recraft V4 Pro</option>
+                                <option value="recraft/recraft-v4">Recraft V4</option>
+                                <option value="sourceful/riverflow-v2-max-preview">Riverflow V2 Max Preview</option>
+                                <option value="recraft/recraft-v3">Recraft V3</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm text-textMuted mb-1">Audio Generation Models</label>
+                            <select id="model-audio" class="w-full glass-input p-3 rounded-xl appearance-none bg-glass cursor-pointer">
+                                <option value="google/lyria-3-pro-preview">Lyria 3 Pro Preview</option>
+                                <option value="google/lyria-3-clip-preview">Lyria 3 Clip Preview</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm text-textMuted mb-1">Video Generation Models</label>
+                            <select id="model-video" class="w-full glass-input p-3 rounded-xl appearance-none bg-glass cursor-pointer">
+                                <option value="kwaivgi/kling-v3.0-pro">Kling V3.0 Pro</option>
+                                <option value="kwaivgi/kling-v3.0-std">Kling V3.0 Std</option>
+                                <option value="google/veo-3.1-fast">Veo 3.1 Fast</option>
+                                <option value="google/veo-3.1-lite">Veo 3.1 Lite</option>
+                                <option value="kwaivgi/kling-video-o1">Kling Video O1</option>
+                                <option value="minimax/hailuo-2.3">Hailuo 2.3</option>
+                                <option value="bytedance/seedance-2.0">Seedance 2.0</option>
+                                <option value="bytedance/seedance-2.0-fast">Seedance 2.0 Fast</option>
+                                <option value="alibaba/wan-2.7">Wan 2.7</option>
+                                <option value="alibaba/wan-2.6">Wan 2.6</option>
+                            </select>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <div class="mt-8 flex justify-end">
+                <button onclick="saveSettings()" class="bg-accent text-white px-6 py-2 rounded-xl hover:shadow-neon transition-shadow font-medium">
+                    Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-4 right-4 z-50 transform translate-y-20 opacity-0 transition-all duration-300">
+        <div class="glass-panel border-l-4 border-accent px-4 py-3 rounded shadow-lg flex items-center gap-3">
+            <i class="fas fa-info-circle text-accent"></i>
+            <span id="toast-message" class="text-sm">Notification message</span>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="fixed bottom-0 left-0 right-0 z-40 glass-panel border-t border-glassBorder py-3 px-4">
+        <div class="flex items-center justify-center gap-3 text-textMuted text-sm">
+            <img src="icon.jpeg" alt="Chellot Logo" class="w-5 h-5 rounded-lg">
+            <span class="font-medium">2026 © Developed by Shehan</span>
+        </div>
+    </footer>
+
+    <!-- Custom Script -->
+    <script src="script.js"></script>
+</body>
+</html>
